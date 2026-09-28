@@ -1,0 +1,13 @@
+{
+  "name": "dream-ai",
+  "version": "1.0.0",
+  "description": "Dream IA - resolução de problemas académicos",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "openai": "^5.12.2"
+  }
+}
