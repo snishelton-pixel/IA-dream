@@ -1,5 +1,4 @@
 const express = require("express");
-const OpenAI = require("openai");
 
 const app = express();
 
@@ -8,93 +7,175 @@ app.use(express.static("public"));
 
 const PORT = process.env.PORT || 10000;
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+function solveMath(question) {
+    let q = question
+        .toLowerCase()
+        .replace(/,/g, ".")
+        .trim();
 
-// Teste do servidor
-app.get("/health", (req, res) => {
-  res.json({
-    status: "online",
-    dream: "Dream IA"
-  });
-});
+    // Adição
+    let match = q.match(/^(-?\d+(?:\.\d+)?)\s*\+\s*(-?\d+(?:\.\d+)?)$/);
 
-// Resolver exercício
-app.post("/api/solve", async (req, res) => {
+    if (match) {
+        const a = Number(match[1]);
+        const b = Number(match[2]);
 
-  console.log("📥 Pergunta recebida:", req.body);
+        return `Resolução:
 
-  try {
+${a} + ${b}
+
+= ${a + b}
+
+Resposta final: ${a + b}`;
+    }
+
+    // Subtração
+    match = q.match(/^(-?\d+(?:\.\d+)?)\s*-\s*(-?\d+(?:\.\d+)?)$/);
+
+    if (match) {
+        const a = Number(match[1]);
+        const b = Number(match[2]);
+
+        return `Resolução:
+
+${a} - ${b}
+
+= ${a - b}
+
+Resposta final: ${a - b}`;
+    }
+
+    // Multiplicação
+    match = q.match(/^(-?\d+(?:\.\d+)?)\s*(?:\*|x|×)\s*(-?\d+(?:\.\d+)?)$/);
+
+    if (match) {
+        const a = Number(match[1]);
+        const b = Number(match[2]);
+
+        return `Resolução:
+
+${a} × ${b}
+
+= ${a * b}
+
+Resposta final: ${a * b}`;
+    }
+
+    // Divisão
+    match = q.match(/^(-?\d+(?:\.\d+)?)\s*(?:\/|÷)\s*(-?\d+(?:\.\d+)?)$/);
+
+    if (match) {
+        const a = Number(match[1]);
+        const b = Number(match[2]);
+
+        if (b === 0) {
+            return "Não é possível dividir por zero.";
+        }
+
+        return `Resolução:
+
+${a} ÷ ${b}
+
+= ${a / b}
+
+Resposta final: ${a / b}`;
+    }
+
+    // Raiz quadrada
+    match = q.match(/(?:raiz quadrada de|√)\s*(\d+(?:\.\d+)?)/);
+
+    if (match) {
+        const n = Number(match[1]);
+        const result = Math.sqrt(n);
+
+        return `Resolução:
+
+√${n}
+
+= ${result}
+
+Resposta final: ${result}`;
+    }
+
+    // Equação simples: 2x + 5 = 15
+    match = q.match(
+        /^(-?\d+(?:\.\d+)?)x\s*([+-])\s*(\d+(?:\.\d+)?)\s*=\s*(-?\d+(?:\.\d+)?)$/
+    );
+
+    if (match) {
+        const a = Number(match[1]);
+        const sinal = match[2];
+        const b = Number(match[3]);
+        const c = Number(match[4]);
+
+        const valorB = sinal === "+" ? b : -b;
+
+        const x = (c - valorB) / a;
+
+        return `Resolução da equação:
+
+${a}x ${sinal} ${b} = ${c}
+
+${a}x = ${c} ${valorB >= 0 ? "-" : "+"} ${Math.abs(valorB)}
+
+${a}x = ${c - valorB}
+
+x = (${c - valorB}) / ${a}
+
+x = ${x}
+
+Resposta final: x = ${x}`;
+    }
+
+    return `Ainda não consigo resolver esse tipo de problema no meu motor atual.
+
+Experimente escrever, por exemplo:
+
+2 + 5
+20 - 8
+6 × 7
+40 ÷ 5
+√144
+2x + 5 = 15`;
+}
+
+
+// API da Dream
+app.post("/api/solve", (req, res) => {
 
     const { question, subject } = req.body;
 
-    if (!question || question.trim() === "") {
-      return res.status(400).json({
-        error: "A pergunta está vazia."
-      });
+    if (!question) {
+        return res.status(400).json({
+            error: "Digite um problema."
+        });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({
-        error: "OPENAI_API_KEY não está configurada no Render."
-      });
-    }
+    let answer;
 
-    console.log("🤖 Enviando pergunta para a IA...");
-
-    const response = await client.responses.create({
-      model: "gpt-5-mini",
-
-      instructions: `
-Você é a Dream IA, uma inteligência artificial educacional.
-
-Sua função é ajudar estudantes a resolver problemas de:
-- Matemática
-- Física
-- Química
-- Biologia
-- Inglês
-- Outras disciplinas escolares
-
-Sempre que possível:
-
-1. Identifique os dados.
-2. Mostre a fórmula.
-3. Faça os cálculos passo a passo.
-4. Explique de forma simples.
-5. Apresente a resposta final.
-
-Disciplina escolhida: ${subject || "Geral"}
-`,
-
-      input: question
-    });
-
-    console.log("✅ Resposta recebida da IA");
-
-    const answer = response.output_text;
-
-    if (!answer) {
-      return res.status(500).json({
-        error: "A IA não retornou texto."
-      });
+    if (subject === "Matemática") {
+        answer = solveMath(question);
+    } else {
+        answer =
+            `A Dream recebeu o problema de ${subject}.\n\n` +
+            `O motor local atualmente está focado em Matemática.`;
     }
 
     res.json({
-      answer: answer
+        answer
     });
-
-  } catch (error) {
-
-    console.error("❌ ERRO DA DREAM:", error);
-
-    res.status(500).json({
-      error: error.message || "Erro desconhecido ao consultar a IA."
-    });
-  }
 });
 
+
+// Teste
+app.get("/health", (req, res) => {
+    res.json({
+        status: "online",
+        dream: "Dream IA"
+    });
+});
+
+
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Dream IA funcionando na porta ${PORT}`);
+    console.log(`Dream IA funcionando na porta ${PORT}`);
 });
