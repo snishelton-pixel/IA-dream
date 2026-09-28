@@ -12,59 +12,89 @@ const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
+// Teste do servidor
+app.get("/health", (req, res) => {
+  res.json({
+    status: "online",
+    dream: "Dream IA"
+  });
+});
+
+// Resolver exercício
 app.post("/api/solve", async (req, res) => {
+
+  console.log("📥 Pergunta recebida:", req.body);
+
   try {
+
     const { question, subject } = req.body;
 
-    if (!question) {
+    if (!question || question.trim() === "") {
       return res.status(400).json({
-        error: "Digite um problema para resolver."
+        error: "A pergunta está vazia."
       });
     }
 
-    const prompt = `
-Você é a Dream, uma IA educacional.
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(500).json({
+        error: "OPENAI_API_KEY não está configurada no Render."
+      });
+    }
 
-Disciplina: ${subject || "Não especificada"}
-
-Resolva o seguinte problema de forma clara e didática:
-
-${question}
-
-Regras:
-- Mostre os dados fornecidos.
-- Apresente as fórmulas necessárias.
-- Resolva passo a passo.
-- Explique os cálculos de forma simples.
-- Termine com uma resposta final destacada.
-- Se faltar alguma informação, diga o que está faltando.
-`;
+    console.log("🤖 Enviando pergunta para a IA...");
 
     const response = await client.responses.create({
       model: "gpt-5-mini",
-      input: prompt
+
+      instructions: `
+Você é a Dream IA, uma inteligência artificial educacional.
+
+Sua função é ajudar estudantes a resolver problemas de:
+- Matemática
+- Física
+- Química
+- Biologia
+- Inglês
+- Outras disciplinas escolares
+
+Sempre que possível:
+
+1. Identifique os dados.
+2. Mostre a fórmula.
+3. Faça os cálculos passo a passo.
+4. Explique de forma simples.
+5. Apresente a resposta final.
+
+Disciplina escolhida: ${subject || "Geral"}
+`,
+
+      input: question
     });
 
+    console.log("✅ Resposta recebida da IA");
+
+    const answer = response.output_text;
+
+    if (!answer) {
+      return res.status(500).json({
+        error: "A IA não retornou texto."
+      });
+    }
+
     res.json({
-      answer: response.output_text
+      answer: answer
     });
 
   } catch (error) {
-    console.error(error);
+
+    console.error("❌ ERRO DA DREAM:", error);
 
     res.status(500).json({
-      error: "Não foi possível resolver o problema."
+      error: error.message || "Erro desconhecido ao consultar a IA."
     });
   }
 });
 
-app.get("/health", (req, res) => {
-  res.json({
-    status: "online",
-    name: "Dream IA"
-  });
-});
-
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Dream IA funcionando na porta ${PORT}`);
+  console.log(`🚀 Dream IA funcionando na porta ${PORT}`);
 });
