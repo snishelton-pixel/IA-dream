@@ -1,28 +1,83 @@
-#resultado {
-    margin-top: 25px;
-    padding: 20px;
+* {
+    box-sizing: border-box;
 }
 
-.passos {
-    margin-top: 15px;
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #0b0f0d;
+    color: white;
+}
+
+.container {
+    width: 90%;
+    max-width: 800px;
+    margin: 50px auto;
+    text-align: center;
+}
+
+h1 {
+    font-size: 42px;
+    margin-bottom: 5px;
+    color: #00ff88;
+}
+
+.subtitulo {
+    color: #aaa;
+    margin-bottom: 30px;
+}
+
+.input-area {
+    display: flex;
+    gap: 10px;
+}
+
+input {
+    flex: 1;
+    padding: 15px;
+    border: 1px solid #333;
+    border-radius: 10px;
+    background: #171b19;
+    color: white;
+    font-size: 16px;
+}
+
+button {
+    padding: 15px 25px;
+    border: none;
+    border-radius: 10px;
+    background: #00c968;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #00e879;
+}
+
+#resultado {
+    margin-top: 30px;
+    text-align: left;
+}
+
+#resultado h2 {
+    color: #00ff88;
 }
 
 .passo {
-    padding: 12px;
+    padding: 14px;
     margin: 8px 0;
     border-radius: 8px;
-    background: #f1f1f1;
-}
-
-.passo strong {
-    display: block;
-    margin-bottom: 5px;
+    background: #171b19;
+    border-left: 3px solid #00c968;
 }
 
 .resultado-final {
-    margin-top: 10px;
-    padding: 15px;
+    padding: 18px;
+    background: #123d29;
+    border-radius: 10px;
     font-size: 20px;
     font-weight: bold;
-    border-radius: 8px;
+    color: #00ff88;
 }
