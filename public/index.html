@@ -1,52 +1,11 @@
-<!DOCTYPE html>
-<html lang="pt">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dream IA</title>
-  <link rel="stylesheet" href="style.css">
-</head>
+<input
+    id="question"
+    type="text"
+    placeholder="Digite uma equação..."
+>
 
-<body>
+<button onclick="resolver()">
+    Resolver
+</button>
 
-  <header>
-    <div class="logo">DREAM</div>
-    <div class="status">● IA Online</div>
-  </header>
-
-  <main>
-    <h1>Dream IA</h1>
-
-    <p class="subtitle">
-      Sua inteligência artificial para resolver problemas
-    </p>
-
-    <div class="subjects">
-      <button class="subject active" data-subject="Matemática">
-        📐 Matemática
-      </button>
-
-      <button class="subject" data-subject="Física">
-        ⚡ Física
-      </button>
-
-      <button class="subject" data-subject="Química">
-        🧪 Química
-      </button>
-    </div>
-
-    <textarea
-      id="question"
-      placeholder="Digite o seu problema aqui...">
-    </textarea>
-
-    <button id="solve">
-      ✨ RESOLVER COM A DREAM
-    </button>
-
-    <div id="result" class="result"></div>
-  </main>
-
-  <script src="script.js"></script>
-</body>
-</html>
+<div id="resultado"></div>
