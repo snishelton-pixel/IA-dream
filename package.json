@@ -1,13 +1,9 @@
 {
-  "name": "dream-ai",
-  "version": "4.0.0",
-  "description": "Dream - Motor matemático educacional",
-  "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^5.1.0",
+    "express": "^4.21.2",
     "mathjs": "^14.0.1"
   }
 }
