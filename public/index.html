@@ -1,11 +1,41 @@
-<input
-    id="question"
-    type="text"
-    placeholder="Digite uma equação..."
->
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<button onclick="resolver()">
-    Resolver
-</button>
+    <title>Dream AI</title>
 
-<div id="resultado"></div>
+    <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+
+    <div class="container">
+
+        <h1>Dream AI</h1>
+
+        <p class="subtitulo">
+            Resolva problemas matemáticos passo a passo
+        </p>
+
+        <div class="input-area">
+            <input
+                id="question"
+                type="text"
+                placeholder="Digite uma equação..."
+            >
+
+            <button onclick="resolver()">
+                Resolver
+            </button>
+        </div>
+
+        <div id="resultado"></div>
+
+    </div>
+
+    <script src="/script.js"></script>
+
+</body>
+</html>
