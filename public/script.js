@@ -1,73 +1,62 @@
-let selectedSubject = "Matemática";
+async function resolver() {
 
-const subjectButtons = document.querySelectorAll(".subject");
-const questionInput = document.getElementById("question");
-const solveButton = document.getElementById("solve");
-const result = document.getElementById("result");
+    const input = document.getElementById("question").value;
+    const resultado = document.getElementById("resultado");
 
-subjectButtons.forEach(button => {
-
-  button.addEventListener("click", () => {
-
-    subjectButtons.forEach(btn => {
-      btn.classList.remove("active");
-    });
-
-    button.classList.add("active");
-
-    selectedSubject = button.dataset.subject;
-  });
-
-});
-
-solveButton.addEventListener("click", async () => {
-
-  const question = questionInput.value.trim();
-
-  if (!question) {
-    alert("Digite um problema primeiro.");
-    return;
-  }
-
-  result.style.display = "block";
-  result.textContent = "Dream está a resolver...";
-
-  solveButton.disabled = true;
-
-  try {
-
-    const response = await fetch("/api/solve", {
-
-      method: "POST",
-
-      headers: {
-        "Content-Type": "application/json"
-      },
-
-      body: JSON.stringify({
-        question: question,
-        subject: selectedSubject
-      })
-
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || "Erro ao resolver.");
+    if (!input.trim()) {
+        resultado.innerHTML = "Digite uma equação.";
+        return;
     }
 
-    result.textContent = data.answer;
+    resultado.innerHTML = "🧠 A Dream está resolvendo...";
 
-  } catch (error) {
+    try {
 
-    result.textContent =
-      "Erro: " + error.message;
+        const response = await fetch("/api/solve", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                question: input
+            })
+        });
 
-  } finally {
+        const data = await response.json();
 
-    solveButton.disabled = false;
+        let html = `
+            <h2>Tipo</h2>
+            <p>${data.tipo}</p>
 
-  }
+            <h2>Passo a passo</h2>
+            <div class="passos">
+        `;
 
-});
+        if (data.passos) {
+            data.passos.forEach((passo, index) => {
+                html += `
+                    <div class="passo">
+                        <strong>Passo ${index + 1}:</strong>
+                        <span>${passo}</span>
+                    </div>
+                `;
+            });
+        }
+
+        html += `
+            </div>
+
+            <h2>Resultado</h2>
+            <div class="resultado-final">
+                ${data.resultado}
+            </div>
+        `;
+
+        resultado.innerHTML = html;
+
+    } catch (error) {
+
+        resultado.innerHTML =
+            "❌ Não foi possível conectar ao servidor Dream.";
+    }
+}
