@@ -1,9 +1,12 @@
 {
+  "name": "dream-ai",
+  "version": "1.0.0",
+  "description": "Dream - IA para resolução de problemas matemáticos",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
-  "dependencies": {
-    "express": "^4.21.2",
-    "mathjs": "^14.0.1"
+  "engines": {
+    "node": ">=18"
   }
 }
