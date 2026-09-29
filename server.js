@@ -1,155 +1,82 @@
 const express = require("express");
-const { create, all } = require("mathjs");
+const { evaluate, derivative } = require("mathjs");
 
 const app = express();
-const math = create(all);
+
+const PORT = process.env.PORT || 10000;
 
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static("public"));
 
-const PORT = process.env.PORT || 10000;
 
-
-// ======================================================
-// CONFIGURAÇÕES
-// ======================================================
-
-const EPS = 1e-8;
-const MAX_DEGREE = 4;
-
-
-// ======================================================
-// NORMALIZAÇÃO DA ENTRADA
-// ======================================================
+// =====================================================
+// NORMALIZAR TEXTO
+// =====================================================
 
 function normalizar(texto) {
-
-    let s = String(texto)
+    return String(texto)
         .trim()
-        .toLowerCase();
-
-    // Símbolos matemáticos
-    s = s
         .replace(/−/g, "-")
-        .replace(/–/g, "-")
-        .replace(/—/g, "-")
         .replace(/×/g, "*")
         .replace(/÷/g, "/")
         .replace(/π/g, "pi")
-        .replace(/∞/g, "Infinity");
-
-    // Potências Unicode
-    s = s
-        .replace(/⁰/g, "^0")
-        .replace(/¹/g, "^1")
         .replace(/²/g, "^2")
         .replace(/³/g, "^3")
         .replace(/⁴/g, "^4")
         .replace(/⁵/g, "^5")
-        .replace(/⁶/g, "^6")
-        .replace(/⁷/g, "^7")
-        .replace(/⁸/g, "^8")
-        .replace(/⁹/g, "^9");
-
-    // Raiz
-    s = s.replace(/√/g, "sqrt");
-
-    // Funções em português
-    s = s
-        .replace(/\bsen\b/g, "sin")
-        .replace(/\bseno\b/g, "sin")
-        .replace(/\bcoseno\b/g, "cos")
-        .replace(/\btg\b/g, "tan")
-        .replace(/\btangente\b/g, "tan");
-
-    // Logaritmos
-    s = s.replace(/\blogaritmo natural\b/g, "ln");
-    s = s.replace(/\blogaritmo\b/g, "log");
-
-    // Remove palavras comuns
-    s = s
-        .replace(/\bem relação a x\b/g, "")
-        .replace(/\bem relacao a x\b/g, "")
-        .replace(/\s+/g, "");
-
-    return s;
+        .replace(/\bsen\b/gi, "sin")
+        .replace(/\btg\b/gi, "tan");
 }
 
 
-// ======================================================
-// CONVERTER TEXTO MATEMÁTICO
-// ======================================================
+// =====================================================
+// PREPARAR EXPRESSÃO
+// =====================================================
 
-function prepararExpressao(texto) {
+function preparar(expr) {
 
-    let s = normalizar(texto);
+    let s = normalizar(expr);
 
-    /*
-       Converte casos como:
-
-       2x      -> 2*x
-       3(x+1)  -> 3*(x+1)
-       x(x+1)  -> x*(x+1)
-       2sin(x) -> 2*sin(x)
-    */
-
+    // 2x -> 2*x
     s = s.replace(
-        /(\d|\)|x|y|z)(?=(x|y|z|))/g,
+        /(\d|\))(?=x)/g,
         "$1*"
     );
 
+    // x(...) -> x*(...)
     s = s.replace(
-        /()(?![+\-*/^=,)])/g,
-        "$1"
+        /x(?=\()/g,
+        "x*"
     );
 
-    // Corrige x² caso tenha virado x^2
-    s = s.replace(/([a-zA-Z0-9_)])\^/g, "$1^");
+    // 2(...) -> 2*(...)
+    s = s.replace(
+        /(\d)(?=\()/g,
+        "$1*"
+    );
 
     return s;
 }
 
 
-// ======================================================
-// DIVIDIR EQUAÇÃO
-// ======================================================
+// =====================================================
+// AVALIAR FUNÇÃO
+// =====================================================
 
-function dividirEquacao(texto) {
-
-    const s = prepararExpressao(texto);
-
-    const partes = s.split("=");
-
-    if (partes.length !== 2) {
-        return null;
-    }
-
-    return {
-        esquerda: partes[0],
-        direita: partes[1],
-        expressao: `(${partes[0]})-(${partes[1]})`
-    };
-}
-
-
-// ======================================================
-// AVALIAÇÃO SEGURA
-// ======================================================
-
-function avaliar(expr, valores = {}) {
+function f(expr, x) {
 
     try {
 
-        const resultado = math.evaluate(
+        const resultado = evaluate(
             expr,
-            valores
+            { x }
         );
 
         if (
-            typeof resultado === "number" &&
-            Number.isFinite(resultado)
+            typeof resultado !== "number" ||
+            !Number.isFinite(resultado)
         ) {
-            return resultado;
+            return null;
         }
 
         return resultado;
@@ -161,188 +88,287 @@ function avaliar(expr, valores = {}) {
 }
 
 
-// ======================================================
-// FORMATAR NÚMERO
-// ======================================================
+// =====================================================
+// DETECTAR POLINÔMIO ATÉ 4.º GRAU
+// =====================================================
 
-function numero(valor) {
+function obterPolinomio(expr) {
 
-    if (typeof valor !== "number") {
-        return String(valor);
+    const valores = [];
+
+    // Calculamos P(0), P(1), ..., P(4)
+    for (let x = 0; x <= 4; x++) {
+
+        const valor = f(expr, x);
+
+        if (valor === null) {
+            return null;
+        }
+
+        valores.push(valor);
     }
 
-    if (Math.abs(valor) < EPS) {
-        return "0";
+    const diferencas = [];
+
+    let atual = valores.slice();
+
+    diferencas.push(atual);
+
+    for (let grau = 1; grau <= 4; grau++) {
+
+        const proxima = [];
+
+        for (
+            let i = 0;
+            i < atual.length - 1;
+            i++
+        ) {
+
+            proxima.push(
+                atual[i + 1] - atual[i]
+            );
+        }
+
+        diferencas.push(proxima);
+
+        atual = proxima;
     }
-
-    if (
-        Math.abs(valor - Math.round(valor)) < EPS
-    ) {
-        return String(Math.round(valor));
-    }
-
-    return Number(
-        valor.toFixed(10)
-    ).toString();
-}
-
-
-// ======================================================
-// FORMATAR COMPLEXO
-// ======================================================
-
-function complexo(z) {
-
-    const re = Math.abs(z.re) < EPS
-        ? 0
-        : Number(z.re.toFixed(8));
-
-    const im = Math.abs(z.im) < EPS
-        ? 0
-        : Number(z.im.toFixed(8));
-
-    if (im === 0) {
-        return String(re);
-    }
-
-    if (re === 0) {
-        return `${im}i`;
-    }
-
-    return `${re} ${im >= 0 ? "+" : "-"} ${Math.abs(im)}i`;
-}
-
-
-// ======================================================
-// FATORIAL
-// ======================================================
-
-function fatorial(n) {
-
-    let resultado = 1;
-
-    for (let i = 2; i <= n; i++) {
-        resultado *= i;
-    }
-
-    return resultado;
-}
-
-
-// ======================================================
-// DETECTAR GRAU DO POLINÔMIO
-// ======================================================
-
-function obterCoeficientesPolinomio(expr) {
-
-    const node = math.parse(expr);
-
-    const coeficientes = [];
 
     /*
-       Para um polinômio:
+       Para:
 
-       P(x)
+       ax + b
 
-       temos:
+       a diferença de 1.º grau é constante.
 
-       P(0) = c0
-       P'(0) = c1
-       P''(0)/2! = c2
-       ...
+       Para:
+
+       ax² + bx + c
+
+       a diferença de 2.º grau é constante.
+
+       etc.
     */
 
-    let atual = node;
+    let grau = -1;
 
-    for (let grau = 0; grau <= MAX_DEGREE; grau++) {
+    for (let i = 1; i <= 4; i++) {
 
-        let valor;
+        const linha =
+            diferencas[i];
 
-        try {
+        const primeiro =
+            linha[0];
 
-            valor =
-                math.evaluate(
-                    atual.toString(),
-                    { x: 0 }
-                );
+        const constante =
+            linha.every(
+                valor =>
+                    Math.abs(
+                        valor - primeiro
+                    ) < 0.000001
+            );
 
-        } catch {
+        if (constante) {
 
-            return null;
-        }
-
-        if (
-            typeof valor !== "number" ||
-            !Number.isFinite(valor)
-        ) {
-            return null;
-        }
-
-        coeficientes.push(
-            valor / fatorial(grau)
-        );
-
-        try {
-
-            atual =
-                math.derivative(
-                    atual.toString(),
-                    "x"
-                );
-
-        } catch {
-
+            grau = i;
             break;
         }
     }
 
-    // Verificar se realmente é polinômio.
-    // Testamos vários pontos.
-    for (let x = -3; x <= 3; x++) {
+    if (grau === -1) {
+        return null;
+    }
 
-        const original =
-            avaliar(expr, { x });
+    /*
+       Converter diferenças finitas
+       para coeficientes.
 
-        let reconstruido = 0;
+       Usamos Newton Forward:
 
+       P(x) =
+       Δ⁰P(0)
+       + Δ¹P(0)x
+       + Δ²P(0)x(x-1)/2!
+       + ...
+    */
+
+    const d = [];
+
+    for (let i = 0; i <= grau; i++) {
+        d.push(diferencas[i][0]);
+    }
+
+    // Polinômio inicialmente zero
+    let coef = Array(grau + 1).fill(0);
+
+    // Polinômio base x(x-1)...(x-k+1)
+    let base = [1];
+
+    for (let k = 0; k <= grau; k++) {
+
+        const fator =
+            d[k] / factorial(k);
+
+        // adicionar fator * base
         for (
-            let i = coeficientes.length - 1;
-            i >= 0;
-            i--
+            let i = 0;
+            i < base.length;
+            i++
         ) {
-            reconstruido =
-                reconstruido * x +
-                coeficientes[i];
+
+            coef[i] +=
+                fator * base[i];
         }
 
-        if (
-            original === null ||
-            Math.abs(
-                original - reconstruido
-            ) > 1e-5
-        ) {
-            return null;
+        // próxima base
+        if (k < grau) {
+
+            const nova =
+                Array(base.length + 1)
+                    .fill(0);
+
+            for (
+                let i = 0;
+                i < base.length;
+                i++
+            ) {
+
+                nova[i] -=
+                    base[i] * k;
+
+                nova[i + 1] +=
+                    base[i];
+            }
+
+            base = nova;
         }
     }
 
+    // Remover zeros superiores
     while (
-        coeficientes.length > 1 &&
+        coef.length > 1 &&
         Math.abs(
-            coeficientes[
-                coeficientes.length - 1
-            ]
-        ) < EPS
+            coef[coef.length - 1]
+        ) < 0.000001
     ) {
-        coeficientes.pop();
+        coef.pop();
     }
 
-    return coeficientes;
+    return {
+        grau: coef.length - 1,
+        coef
+    };
 }
 
 
-// ======================================================
+// =====================================================
+// FATORIAL
+// =====================================================
+
+function factorial(n) {
+
+    let r = 1;
+
+    for (let i = 2; i <= n; i++) {
+        r *= i;
+    }
+
+    return r;
+}
+
+
+// =====================================================
+// POLINÔMIO
+// =====================================================
+
+function polinomioTexto(coef) {
+
+    const partes = [];
+
+    for (
+        let i = coef.length - 1;
+        i >= 0;
+        i--
+    ) {
+
+        const c = coef[i];
+
+        if (
+            Math.abs(c) < 0.000001
+        ) {
+            continue;
+        }
+
+        let termo;
+
+        if (i === 0) {
+
+            termo =
+                formatarNumero(
+                    Math.abs(c)
+                );
+
+        } else if (i === 1) {
+
+            if (
+                Math.abs(c - 1) <
+                0.000001
+            ) {
+
+                termo = "x";
+
+            } else {
+
+                termo =
+                    formatarNumero(
+                        Math.abs(c)
+                    ) + "x";
+            }
+
+        } else {
+
+            if (
+                Math.abs(c - 1) <
+                0.000001
+            ) {
+
+                termo =
+                    `x^${i}`;
+
+            } else {
+
+                termo =
+                    `${formatarNumero(
+                        Math.abs(c)
+                    )}x^${i}`;
+            }
+        }
+
+        if (partes.length === 0) {
+
+            partes.push(
+                c < 0
+                    ? "-" + termo
+                    : termo
+            );
+
+        } else {
+
+            partes.push(
+                c < 0
+                    ? "- " + termo
+                    : "+ " + termo
+            );
+        }
+    }
+
+    return partes.join(" ");
+}
+
+
+// =====================================================
 // AVALIAR POLINÔMIO
-// ======================================================
+// =====================================================
 
 function avaliarPolinomio(coef, x) {
 
@@ -363,313 +389,202 @@ function avaliarPolinomio(coef, x) {
 }
 
 
-// ======================================================
-// DERIVADA DO POLINÔMIO
-// ======================================================
+// =====================================================
+// NEWTON
+// =====================================================
 
-function derivadaCoef(coef) {
+function newton(coef, inicio) {
 
-    const resultado = [];
+    let x = inicio;
 
-    for (
-        let i = 1;
-        i < coef.length;
-        i++
-    ) {
-        resultado.push(
-            coef[i] * i
-        );
-    }
+    for (let i = 0; i < 100; i++) {
 
-    return resultado;
-}
+        const y =
+            avaliarPolinomio(
+                coef,
+                x
+            );
 
+        let derivada = 0;
 
-// ======================================================
-// DIVISÃO COMPLEXA
-// ======================================================
+        for (
+            let j = 1;
+            j < coef.length;
+            j++
+        ) {
 
-function dividirComplexos(a, b) {
-
-    const denominador =
-        b.re * b.re +
-        b.im * b.im;
-
-    return {
-        re:
-            (a.re * b.re +
-                a.im * b.im) /
-            denominador,
-
-        im:
-            (a.im * b.re -
-                a.re * b.im) /
-            denominador
-    };
-}
-
-
-// ======================================================
-// MULTIPLICAÇÃO COMPLEXA
-// ======================================================
-
-function multiplicarComplexos(a, b) {
-
-    return {
-        re:
-            a.re * b.re -
-            a.im * b.im,
-
-        im:
-            a.re * b.im +
-            a.im * b.re
-    };
-}
-
-
-// ======================================================
-// SUBTRAÇÃO COMPLEXA
-// ======================================================
-
-function subComplexos(a, b) {
-
-    return {
-        re: a.re - b.re,
-        im: a.im - b.im
-    };
-}
-
-
-// ======================================================
-// DURAND-KERNER
-// ======================================================
-
-function raizesPolinomio(coef) {
-
-    const grau = coef.length - 1;
-
-    if (grau < 1) {
-        return [];
-    }
-
-    if (grau > 4) {
-        throw new Error(
-            "O solucionador algébrico suporta até ao 4.º grau."
-        );
-    }
-
-    const principal = coef[grau];
-
-    const c = coef.map(
-        v => v / principal
-    );
-
-    // Estimativa inicial
-    let raio =
-        1 +
-        Math.max(
-            ...c
-                .slice(0, grau)
-                .map(v => Math.abs(v))
-        );
-
-    if (!Number.isFinite(raio)) {
-        raio = 2;
-    }
-
-    let roots = [];
-
-    for (let i = 0; i < grau; i++) {
-
-        const angulo =
-            2 * Math.PI * i / grau;
-
-        roots.push({
-            re:
-                raio * Math.cos(angulo),
-
-            im:
-                raio * Math.sin(angulo)
-        });
-    }
-
-    for (let iter = 0; iter < 1000; iter++) {
-
-        let convergiu = true;
-
-        const novos = [];
-
-        for (let i = 0; i < grau; i++) {
-
-            const z = roots[i];
-
-            // P(z)
-            let p = {
-                re: c[grau],
-                im: 0
-            };
-
-            for (
-                let k = grau - 1;
-                k >= 0;
-                k--
-            ) {
-
-                p =
-                    multiplicarComplexos(
-                        p,
-                        z
-                    );
-
-                p.re += c[k];
-            }
-
-            // Produto (z-zj)
-            let produto = {
-                re: 1,
-                im: 0
-            };
-
-            for (let j = 0; j < grau; j++) {
-
-                if (i === j) continue;
-
-                produto =
-                    multiplicarComplexos(
-                        produto,
-                        subComplexos(
-                            z,
-                            roots[j]
-                        )
-                    );
-            }
-
-            const correcao =
-                dividirComplexos(
-                    p,
-                    produto
+            derivada +=
+                j *
+                coef[j] *
+                Math.pow(
+                    x,
+                    j - 1
                 );
+        }
 
-            const novo = {
-                re:
-                    z.re - correcao.re,
+        if (
+            Math.abs(derivada) <
+            0.000000001
+        ) {
+            return null;
+        }
 
-                im:
-                    z.im - correcao.im
-            };
+        const novo =
+            x - y / derivada;
+
+        if (
+            Math.abs(
+                novo - x
+            ) < 0.000000001
+        ) {
+
+            return novo;
+        }
+
+        x = novo;
+    }
+
+    return null;
+}
+
+
+// =====================================================
+// ENCONTRAR RAÍZES REAIS
+// =====================================================
+
+function encontrarRaizesReais(coef) {
+
+    const raizes = [];
+
+    // Newton com vários pontos iniciais
+    for (
+        let inicio = -100;
+        inicio <= 100;
+        inicio += 0.5
+    ) {
+
+        const raiz =
+            newton(
+                coef,
+                inicio
+            );
+
+        if (
+            raiz !== null &&
+            Number.isFinite(raiz) &&
+            Math.abs(
+                avaliarPolinomio(
+                    coef,
+                    raiz
+                )
+            ) < 0.00001
+        ) {
 
             if (
-                Math.hypot(
-                    novo.re - z.re,
-                    novo.im - z.im
-                ) > 1e-10
+                !raizes.some(
+                    r =>
+                        Math.abs(
+                            r - raiz
+                        ) < 0.0001
+                )
             ) {
-                convergiu = false;
+
+                raizes.push(raiz);
             }
-
-            novos.push(novo);
-        }
-
-        roots = novos;
-
-        if (convergiu) {
-            break;
         }
     }
 
-    return roots;
+    return raizes.sort(
+        (a, b) => a - b
+    );
 }
 
 
-// ======================================================
-// RESOLVER POLINÔMIO
-// ======================================================
+// =====================================================
+// RESOLVER 1.º, 2.º, 3.º E 4.º GRAU
+// =====================================================
 
 function resolverPolinomio(coef) {
 
     const grau =
         coef.length - 1;
 
-    const roots =
-        raizesPolinomio(coef);
+    const raizes =
+        encontrarRaizesReais(
+            coef
+        );
 
     let resposta =
         `EQUAÇÃO DO ${grau}º GRAU\n\n`;
 
     resposta +=
-        "Coeficientes:\n";
-
-    for (
-        let i = grau;
-        i >= 0;
-        i--
-    ) {
-
-        resposta +=
-            `a${i} = ${numero(coef[i])}\n`;
-    }
+        "Equação reduzida:\n";
 
     resposta +=
-        "\nRAÍZES:\n";
+        polinomioTexto(coef);
 
-    roots.forEach(
-        (root, i) => {
+    resposta +=
+        " = 0\n\n";
+
+
+    if (grau === 1) {
+
+        const a = coef[1];
+        const b = coef[0];
+
+        const x =
+            -b / a;
+
+        resposta +=
+            "Resolução:\n\n";
+
+        resposta +=
+            `${formatarNumero(a)}x + ` +
+            `${formatarNumero(b)} = 0\n\n`;
+
+        resposta +=
+            `x = ${formatarNumero(x)}\n`;
+
+    } else {
+
+        if (raizes.length === 0) {
 
             resposta +=
-                `x${i + 1} = ${complexo(root)}\n`;
-        }
-    );
+                "Não foram encontradas " +
+                "raízes reais.\n";
 
-    // Fatorização para raízes reais
-    const reais =
-        roots
-            .filter(
-                r =>
-                    Math.abs(r.im) < 1e-6
-            )
-            .map(
-                r =>
-                    Number(
-                        r.re.toFixed(8)
-                    )
+        } else {
+
+            resposta +=
+                "Soluções reais:\n\n";
+
+            raizes.forEach(
+                (r, i) => {
+
+                    resposta +=
+                        `x${i + 1} = ` +
+                        `${formatarNumero(r)}\n`;
+                }
             );
-
-    if (reais.length === grau) {
-
-        resposta +=
-            "\nFATORAÇÃO:\n";
-
-        resposta +=
-            reais
-                .map(
-                    r =>
-                        r >= 0
-                            ? `(x - ${numero(r)})`
-                            : `(x + ${numero(Math.abs(r))})`
-                )
-                .join("") +
-            " = 0\n";
+        }
     }
 
+
     resposta +=
-        "\nVERIFICAÇÃO:\n";
+        "\nVerificação:\n";
 
-    roots.forEach(
-        (root, i) => {
+    raizes.forEach(
+        (r, i) => {
 
-            if (
-                Math.abs(root.im) < 1e-6
-            ) {
+            const valor =
+                avaliarPolinomio(
+                    coef,
+                    r
+                );
 
-                const valor =
-                    avaliarPolinomio(
-                        coef,
-                        root.re
-                    );
-
-                resposta +=
-                    `x${i + 1}: ${numero(valor)}\n`;
-            }
+            resposta +=
+                `x${i + 1}: ` +
+                `${formatarNumero(valor)}\n`;
         }
     );
 
@@ -677,200 +592,99 @@ function resolverPolinomio(coef) {
 }
 
 
-// ======================================================
-// NEWTON-RAPHSON
-// ======================================================
+// =====================================================
+// RESOLVER EQUAÇÃO NÃO POLINOMIAL
+// =====================================================
 
-function newton(expr, x0) {
+function resolverNumerica(expr) {
 
-    let x = x0;
+    const raizes = [];
 
-    let derivada;
+    let anteriorX = -100;
 
-    try {
-
-        derivada =
-            math.derivative(
-                expr,
-                "x"
-            ).toString();
-
-    } catch {
-
-        return null;
-    }
-
-    for (let i = 0; i < 100; i++) {
-
-        const fx =
-            avaliar(
-                expr,
-                { x }
-            );
-
-        const dfx =
-            avaliar(
-                derivada,
-                { x }
-            );
-
-        if (
-            fx === null ||
-            dfx === null ||
-            Math.abs(dfx) < 1e-12
-        ) {
-            return null;
-        }
-
-        const novo =
-            x - fx / dfx;
-
-        if (
-            Math.abs(novo - x) <
-            1e-10
-        ) {
-            return novo;
-        }
-
-        x = novo;
-    }
-
-    return x;
-}
-
-
-// ======================================================
-// BISEÇÃO
-// ======================================================
-
-function bissecao(expr, a, b) {
-
-    let fa =
-        avaliar(expr, { x: a });
-
-    let fb =
-        avaliar(expr, { x: b });
-
-    if (
-        fa === null ||
-        fb === null
-    ) {
-        return null;
-    }
-
-    if (
-        Math.abs(fa) < EPS
-    ) {
-        return a;
-    }
-
-    if (
-        Math.abs(fb) < EPS
-    ) {
-        return b;
-    }
-
-    if (fa * fb > 0) {
-        return null;
-    }
-
-    for (let i = 0; i < 200; i++) {
-
-        const m =
-            (a + b) / 2;
-
-        const fm =
-            avaliar(
-                expr,
-                { x: m }
-            );
-
-        if (fm === null) {
-            return null;
-        }
-
-        if (
-            Math.abs(fm) < EPS ||
-            Math.abs(b - a) < EPS
-        ) {
-            return m;
-        }
-
-        if (fa * fm < 0) {
-
-            b = m;
-            fb = fm;
-
-        } else {
-
-            a = m;
-            fa = fm;
-        }
-    }
-
-    return (a + b) / 2;
-}
-
-
-// ======================================================
-// ENCONTRAR RAÍZES NUMÉRICAS
-// ======================================================
-
-function encontrarRaizesNumericas(expr) {
-
-    const roots = [];
-
-    const MIN = -100;
-    const MAX = 100;
-    const PASSO = 0.25;
-
-    let anteriorX = MIN;
     let anteriorY =
-        avaliar(
+        f(
             expr,
-            { x: anteriorX }
+            anteriorX
         );
 
     for (
-        let x = MIN + PASSO;
-        x <= MAX;
-        x += PASSO
+        let x = -99.9;
+        x <= 100;
+        x += 0.1
     ) {
 
         const y =
-            avaliar(
-                expr,
-                { x }
-            );
+            f(expr, x);
 
         if (
             anteriorY !== null &&
             y !== null
         ) {
 
-            // Raiz exata
             if (
-                Math.abs(y) < 1e-7
+                Math.abs(y) <
+                0.000001
             ) {
 
-                roots.push(x);
-            }
+                adicionarRaiz(
+                    raizes,
+                    x
+                );
 
-            // Mudança de sinal
-            else if (
+            } else if (
                 anteriorY * y < 0
             ) {
 
-                const raiz =
-                    bissecao(
-                        expr,
-                        anteriorX,
-                        x
-                    );
+                let a =
+                    anteriorX;
 
-                if (raiz !== null) {
-                    roots.push(raiz);
+                let b = x;
+
+                for (
+                    let i = 0;
+                    i < 100;
+                    i++
+                ) {
+
+                    const meio =
+                        (a + b) / 2;
+
+                    const fm =
+                        f(
+                            expr,
+                            meio
+                        );
+
+                    if (
+                        Math.abs(fm) <
+                        0.000000001
+                    ) {
+
+                        a = meio;
+                        b = meio;
+                        break;
+                    }
+
+                    const fa =
+                        f(expr, a);
+
+                    if (
+                        fa * fm <= 0
+                    ) {
+
+                        b = meio;
+
+                    } else {
+
+                        a = meio;
+                    }
                 }
+
+                adicionarRaiz(
+                    raizes,
+                    (a + b) / 2
+                );
             }
         }
 
@@ -878,242 +692,389 @@ function encontrarRaizesNumericas(expr) {
         anteriorY = y;
     }
 
-    // Newton em vários pontos
-    for (
-        let x = -20;
-        x <= 20;
-        x += 1
-    ) {
-
-        const raiz =
-            newton(
-                expr,
-                x
-            );
-
-        if (
-            raiz !== null &&
-            Number.isFinite(raiz) &&
-            raiz >= MIN &&
-            raiz <= MAX
-        ) {
-
-            const valor =
-                avaliar(
-                    expr,
-                    { x: raiz }
-                );
-
-            if (
-                valor !== null &&
-                Math.abs(valor) < 1e-5
-            ) {
-
-                roots.push(raiz);
-            }
-        }
-    }
-
-    // Remover duplicados
-    const unicas = [];
-
-    for (const r of roots) {
-
-        if (
-            !unicas.some(
-                u =>
-                    Math.abs(u - r) <
-                    1e-5
-            )
-        ) {
-            unicas.push(r);
-        }
-    }
-
-    return unicas.sort(
-        (a, b) => a - b
-    );
+    return raizes;
 }
 
 
-// ======================================================
-// EQUAÇÃO GERAL
-// ======================================================
+function adicionarRaiz(
+    lista,
+    raiz
+) {
 
-function resolverEquacao(texto) {
+    if (
+        !lista.some(
+            r =>
+                Math.abs(
+                    r - raiz
+                ) < 0.0001
+        )
+    ) {
+
+        lista.push(raiz);
+    }
+}
+
+
+// =====================================================
+// RESOLVER EQUAÇÃO
+// =====================================================
+
+function resolverEquacao(pergunta) {
+
+    let texto =
+        normalizar(pergunta);
 
     const partes =
-        dividirEquacao(texto);
+        texto.split("=");
 
-    if (!partes) {
-        return null;
+    if (partes.length !== 2) {
+
+        return `
+Não encontrei uma equação válida.
+
+Exemplo:
+
+x^2 - 5x + 6 = 0
+`;
     }
+
+    const esquerda =
+        preparar(
+            partes[0]
+        );
+
+    const direita =
+        preparar(
+            partes[1]
+        );
 
     const expr =
-        partes.expressao;
+        `(${esquerda})-(${direita})`;
 
-    // ----------------------------------------------
+
     // Tentar polinômio
-    // ----------------------------------------------
+    const polinomio =
+        obterPolinomio(expr);
 
-    const coef =
-        obterCoeficientesPolinomio(
-            expr
+    if (
+        polinomio &&
+        polinomio.grau >= 1 &&
+        polinomio.grau <= 4
+    ) {
+
+        return resolverPolinomio(
+            polinomio.coef
         );
-
-    if (coef) {
-
-        const grau =
-            coef.length - 1;
-
-        if (
-            grau >= 1 &&
-            grau <= 4
-        ) {
-
-            let resposta =
-                resolverPolinomio(
-                    coef
-                );
-
-            return `
-${resposta}
-
-EQUAÇÃO ORIGINAL:
-
-${texto}
-`;
-        }
     }
 
-    // ----------------------------------------------
-    // Equação transcendental
-    // ----------------------------------------------
 
+    // Tentar solução numérica
     const raizes =
-        encontrarRaizesNumericas(
-            expr
-        );
+        resolverNumerica(expr);
 
     if (raizes.length > 0) {
 
         let resposta =
-            `EQUAÇÃO TRANSCENDENTAL\n\n`;
+            "EQUAÇÃO\n\n";
 
         resposta +=
-            `Equação:\n${texto}\n\n`;
+            `Equação:\n${pergunta}\n\n`;
 
         resposta +=
-            "Soluções numéricas encontradas:\n";
+            "Soluções aproximadas:\n\n";
 
         raizes.forEach(
             (r, i) => {
 
                 resposta +=
-                    `x${i + 1} ≈ ${numero(r)}\n`;
+                    `x${i + 1} ≈ ` +
+                    `${formatarNumero(r)}\n`;
             }
         );
-
-        resposta +=
-            "\nIntervalo pesquisado: [-100, 100]\n";
-
-        resposta +=
-            "\nAs soluções são aproximações numéricas.";
 
         return resposta;
     }
 
+
     return `
-A Dream identificou uma equação, mas
-não conseguiu encontrar uma solução
-no intervalo numérico pesquisado.
+A Dream conseguiu identificar a equação,
+mas não encontrou uma solução real.
 
 Equação:
 
-${texto}
-
-Experimente escrever usando:
-
-x
-x^2
-x^3
-x^4
-sqrt(x)
-sin(x)
-cos(x)
-tan(x)
-log(x)
-ln(x)
-e^x
+${pergunta}
 `;
 }
 
 
-// ======================================================
-// DERIVADA
-// ======================================================
+// =====================================================
+// EXPRESSÃO MATEMÁTICA
+// =====================================================
 
-function resolverDerivada(texto) {
-
-    let q =
-        normalizar(texto);
-
-    q =
-        q.replace(
-            /^derivada\s+(de\s+)?/,
-            ""
-        );
+function resolverCalculo(texto) {
 
     try {
 
-        const node =
-            math.derivative(
-                q,
+        const expressao =
+            preparar(texto);
+
+        const resultado =
+            evaluate(expressao);
+
+        return `
+CÁLCULO
+
+Expressão:
+
+${texto}
+
+Resultado:
+
+${formatarNumero(
+    resultado
+)}
+`;
+
+    } catch {
+
+        return null;
+    }
+}
+
+
+// =====================================================
+// DERIVADA
+// =====================================================
+
+function resolverDerivada(texto) {
+
+    try {
+
+        let expr =
+            texto
+                .replace(
+                    /^derivada\s*/i,
+                    ""
+                )
+                .trim();
+
+        expr =
+            preparar(expr);
+
+        const resultado =
+            derivative(
+                expr,
                 "x"
             );
 
         return `
 DERIVADA
 
-Função:
+f(x) = ${expr}
 
-f(x) = ${q}
-
-Derivada:
-
-f'(x) = ${node.toString()}
+f'(x) = ${resultado.toString()}
 `;
 
-    } catch (error) {
+    } catch {
 
         return null;
     }
 }
 
 
-// ======================================================
-// INTEGRAL DEFINIDA
-// ======================================================
+// =====================================================
+// FORMATAR NÚMEROS
+// =====================================================
 
-function integralNumerica(
-    expr,
-    a,
-    b,
-    n = 10000
-) {
+function formatarNumero(valor) {
 
-    if (n % 2 !== 0) {
-        n++;
+    if (
+        typeof valor !== "number"
+    ) {
+        return String(valor);
     }
 
-    const h =
-        (b - a) / n;
+    if (
+        Math.abs(valor) <
+        0.000000001
+    ) {
+        return "0";
+    }
 
-    let soma =
-        avaliar(expr, { x: a }) +
-        avaliar(expr, { x: b });
+    if (
+        Math.abs(
+            valor -
+            Math.round(valor)
+        ) < 0.000000001
+    ) {
 
-    for (
-        let i = 1;
-        i < n;
-        i
+        return String(
+            Math.round(valor)
+        );
+    }
+
+    return Number(
+        valor.toFixed(10)
+    ).toString();
+}
+
+
+// =====================================================
+// MOTOR DA DREAM
+// =====================================================
+
+function resolver(pergunta) {
+
+    const texto =
+        String(pergunta)
+            .trim();
+
+    if (!texto) {
+
+        return "Digite uma questão matemática.";
+    }
+
+
+    // Derivada
+    if (
+        /^derivada/i.test(texto)
+    ) {
+
+        const resposta =
+            resolverDerivada(
+                texto
+            );
+
+        if (resposta) {
+            return resposta;
+        }
+    }
+
+
+    // Equação
+    if (
+        texto.includes("=")
+    ) {
+
+        return resolverEquacao(
+            texto
+        );
+    }
+
+
+    // Cálculo normal
+    const calculo =
+        resolverCalculo(
+            texto
+        );
+
+    if (calculo) {
+        return calculo;
+    }
+
+
+    return `
+Não consegui interpretar:
+
+${texto}
+
+Experimente:
+
+2x + 5 = 15
+
+x^2 - 5x + 6 = 0
+
+x^3 - 6x^2 + 11x - 6 = 0
+
+x^4 - 5x^3 + 5x^2 + 5x - 6 = 0
+`;
+}
+
+
+// =====================================================
+// API
+// =====================================================
+
+app.post(
+    "/api/solve",
+    (req, res) => {
+
+        try {
+
+            const pergunta =
+                req.body.question ||
+                req.body.text ||
+                req.body.problem;
+
+            if (!pergunta) {
+
+                return res.status(400).json({
+                    success: false,
+                    error:
+                        "Nenhuma pergunta recebida."
+                });
+            }
+
+            console.log(
+                "Pergunta recebida:",
+                pergunta
+            );
+
+            const resposta =
+                resolver(
+                    pergunta
+                );
+
+            res.json({
+                success: true,
+                answer: resposta
+            });
+
+        } catch (erro) {
+
+            console.error(
+                "Erro:",
+                erro
+            );
+
+            res.status(500).json({
+                success: false,
+                error:
+                    "Erro ao resolver a questão."
+            });
+        }
+    }
+);
+
+
+// =====================================================
+// TESTE
+// =====================================================
+
+app.get(
+    "/health",
+    (req, res) => {
+
+        res.json({
+            status: "online",
+            dream: true,
+            engine: "mathematical"
+        });
+    }
+);
+
+
+// =====================================================
+// INICIAR
+// =====================================================
+
+app.listen(
+    PORT,
+    "0.0.0.0",
+    () => {
+
+        console.log(
+            `Dream online na porta ${PORT}`
+        );
+    }
+);
