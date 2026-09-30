@@ -2,27 +2,15 @@ const http = require("http");
 
 const PORT = process.env.PORT || 3000;
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(function (req, res) {
     res.writeHead(200, {
-        "Content-Type": "text/html; charset=utf-8"
+        "Content-Type": "text/plain; charset=utf-8"
     });
 
-    res.end(`
-        <html>
-            <head>
-                <title>Dream AI</title>
-            </head>
-            <body>
-                <h1>Dream AI está online!</h1>
-                <p>Servidor funcionando corretamente.</p>
-            </body>
-        </html>
-    `);
+    res.end("Dream AI está funcionando!");
 });
 
-server.listen(PORT, "0.0.0.0", () => {
-    console.log("=================================");
-    console.log("DREAM AI INICIADO COM SUCESSO");
-    console.log("PORTA:", PORT);
-    console.log("=================================");
-});       }
+server.listen(PORT, "0.0.0.0", function () {
+    console.log("DREAM AI ONLINE");
+    console.log("PORTA: " + PORT);
+});
