@@ -174,36 +174,43 @@ function resolverQuadratica(expr) {
         throw new Error("Equação inválida");
     }
 
-    const esquerda = partes[0]
-        .replace(/\s/g, "")
-        .replace(/-/g, "+-");
+    const esquerda = partes[0].trim();
+    const direita = partes[1].trim();
 
-    const direita = partes[1];
+    // Coloca toda a equação no primeiro membro:
+    // esquerda - direita = 0
+    const funcao = (x) => {
+        return avaliarExpressao(esquerda, x) -
+               avaliarExpressao(direita, x);
+    };
 
-    const tudo = `${esquerda}-(${direita})`;
+    // Obtém os coeficientes:
+    // ax² + bx + c = 0
 
-    const match = tudo.match(
-        /^([+-]?\d*\.?\d*)x\^2(?:\+([+-]?\d*\.?\d*)x)?(?:\+([+-]?\d*\.?\d*))?$/
-    );
+    const c = funcao(0);
 
-    if (!match) {
-        throw new Error("Formato quadrático não reconhecido");
+    const valor1 = funcao(1);
+    const valorMenos1 = funcao(-1);
+
+    const a = (valor1 + valorMenos1 - 2 * c) / 2;
+    const b = (valor1 - valorMenos1) / 2;
+
+    // Verifica se realmente é uma equação do 2º grau
+    if (Math.abs(a) < 1e-10) {
+        throw new Error("Esta não é uma equação do 2º grau.");
     }
-
-    let a = match[1];
-    let b = match[2];
-    let c = match[3];
-
-    a = a === "" || a === "+" ? 1 : a === "-" ? -1 : Number(a);
-    b = b === undefined || b === "" || b === "+" ? 0 : b === "-" ? -1 : Number(b);
-    c = c === undefined || c === "" ? 0 : Number(c);
 
     const delta = b * b - 4 * a * c;
 
+    // Sem raízes reais
     if (delta < 0) {
+
         return {
             tipo: "Equação do 2º grau",
             passos: [
+                `a = ${a}`,
+                `b = ${b}`,
+                `c = ${c}`,
                 `Δ = b² - 4ac`,
                 `Δ = ${delta}`,
                 "Como Δ < 0, não existem raízes reais."
@@ -215,48 +222,36 @@ function resolverQuadratica(expr) {
     const x1 = (-b + Math.sqrt(delta)) / (2 * a);
     const x2 = (-b - Math.sqrt(delta)) / (2 * a);
 
+    // Equação com uma única raiz
+    if (Math.abs(x1 - x2) < 1e-10) {
+
+        return {
+            tipo: "Equação do 2º grau incompleta",
+            passos: [
+                `a = ${a}`,
+                `b = ${b}`,
+                `c = ${c}`,
+                `Δ = b² - 4ac`,
+                `Δ = ${delta}`,
+                `x = -b / 2a`,
+                `x = ${x1}`
+            ],
+            resultado: `x = ${x1}`
+        };
+    }
+
     return {
         tipo: "Equação do 2º grau",
         passos: [
-            `a = ${a}, b = ${b}, c = ${c}`,
+            `a = ${a}`,
+            `b = ${b}`,
+            `c = ${c}`,
             `Δ = b² - 4ac`,
             `Δ = ${delta}`,
             `x₁ = (-b + √Δ) / 2a`,
             `x₂ = (-b - √Δ) / 2a`
         ],
         resultado: `x₁ = ${x1} ; x₂ = ${x2}`
-    };
-        }
-// ===============================
-// DERIVADA
-// ===============================
-
-function resolverDerivada(texto) {
-
-    const match = texto.match(
-        /derivada\s+de\s+(.+?)\s+(?:em|no ponto|quando)\s*x\s*=?\s*(-?\d+(?:\.\d+)?)/i
-    );
-
-    if (!match) {
-        throw new Error("Indique o ponto da derivada. Exemplo: derivada de x^2 em x=3");
-    }
-
-    const expressao = match[1].trim();
-    const x = Number(match[2]);
-
-    const f = (valor) => avaliarExpressao(expressao, valor);
-
-    const resultado = derivative(f, x);
-
-    return {
-        tipo: "Derivada numérica",
-        passos: [
-            `Função: f(x) = ${expressao}`,
-            `Ponto: x = ${x}`,
-            "Aplicando a derivada numérica",
-            `f'(x) ≈ ${resultado}`
-        ],
-        resultado: `f'(${x}) ≈ ${resultado}`
     };
 }
 
