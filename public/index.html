@@ -19,7 +19,9 @@
             Resolva problemas matemáticos passo a passo
         </p>
 
+        <!-- Digitar exercício -->
         <div class="input-area">
+
             <input
                 id="question"
                 type="text"
@@ -29,12 +31,42 @@
             <button onclick="resolver()">
                 Resolver
             </button>
+
         </div>
 
+        <!-- Enviar imagem -->
+        <div class="imagem-area">
+
+            <label for="imagem" class="botao-imagem">
+                📷 Enviar exercício
+            </label>
+
+            <input
+                id="imagem"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onchange="lerImagem(event)"
+                hidden
+            >
+
+        </div>
+
+        <!-- Pré-visualização da imagem -->
+        <div id="preview"></div>
+
+        <!-- Texto reconhecido -->
+        <div id="texto-lido"></div>
+
+        <!-- Resultado -->
         <div id="resultado"></div>
 
     </div>
 
+    <!-- Biblioteca OCR -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@6/dist/tesseract.min.js"></script>
+
+    <!-- Código da Dream IA -->
     <script src="/script.js"></script>
 
 </body>
