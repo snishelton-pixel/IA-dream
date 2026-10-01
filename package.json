@@ -1,12 +1,15 @@
 {
   "name": "dream-ai",
   "version": "1.0.0",
-  "description": "Dream - IA para resolução de problemas matemáticos",
+  "description": "IA Dream para resolução de problemas matemáticos",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "tesseract.js": "^6.0.1"
   }
 }
