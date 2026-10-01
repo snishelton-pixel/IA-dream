@@ -521,8 +521,18 @@ function resolverExpressao(texto) {
 
 function resolverProblema(pergunta) {
 
-    const original = pergunta.trim();
-    const texto = normalizar(original);
+    let texto = normalizar(pergunta);
+
+    // Remove palavras usadas para pedir a resolução
+    texto = texto
+        .replace(/^resolva\s+/i, "")
+        .replace(/^resolver\s+/i, "")
+        .replace(/^calcule\s+/i, "")
+        .replace(/^calcular\s+/i, "")
+        .replace(/^encontre\s+/i, "")
+        .replace(/^determine\s+/i, "")
+        .replace(/^qual\s+e\s+/i, "")
+        .trim();
 
     // Segunda derivada
     if (texto.includes("segunda derivada")) {
@@ -565,7 +575,7 @@ function resolverProblema(pergunta) {
         return resolverGradiente(texto);
     }
 
-    // Equação quadrática
+    // Equação do 2º grau
     if (
         texto.includes("=") &&
         texto.includes("x^2")
@@ -573,7 +583,7 @@ function resolverProblema(pergunta) {
         return resolverQuadratica(texto);
     }
 
-    // Equação linear
+    // Equação do 1º grau
     if (
         texto.includes("=") &&
         texto.includes("x")
@@ -584,8 +594,6 @@ function resolverProblema(pergunta) {
     // Cálculo simples
     return resolverExpressao(texto);
 }
-
-
 // ===============================
 // SERVIDOR HTTP
 // ===============================
