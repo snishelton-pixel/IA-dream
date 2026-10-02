@@ -81,3 +81,49 @@ button:hover {
     font-weight: bold;
     color: #00ff88;
 }
+
+/* Área da imagem do exercício */
+.imagem-area {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.botao-imagem {
+    display: inline-block;
+    padding: 14px 20px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: bold;
+    background: #00e676;
+    color: #000;
+}
+
+/* Tamanho controlado da imagem */
+#preview {
+    margin-top: 20px;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+.imagem-preview {
+    display: block;
+    width: 100%;
+    max-width: 500px;
+    max-height: 400px;
+    object-fit: contain;
+    border-radius: 12px;
+}
+
+/* Texto reconhecido */
+#texto-lido {
+    margin-top: 20px;
+}
+
+.texto-reconhecido {
+    background: #171b19;
+    padding: 15px;
+    border-radius: 10px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
