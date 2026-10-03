@@ -196,3 +196,30 @@ async function lerImagem(event) {
         document.getElementById("resultado").innerHTML = "";
     }
     }
+function corrigirMatematica(texto) {
+
+    let t = texto;
+
+    // Normalizar símbolos
+    t = t
+        .replace(/×/g, "*")
+        .replace(/÷/g, "/")
+        .replace(/−/g, "-")
+        .replace(/=/g, "=");
+
+    // Erros comuns do OCR
+    t = t.replace(/\bO\b/g, "0");
+    t = t.replace(/\bl\b/g, "1");
+    t = t.replace(/\bI\b/g, "1");
+
+    // x2 -> x^2
+    t = t.replace(/x\s*2\b/g, "x^2");
+
+    // x 2 -> x^2
+    t = t.replace(/x\s+2/g, "x^2");
+
+    // Remover espaços excessivos
+    t = t.replace(/\s+/g, " ").trim();
+
+    return t;
+}
