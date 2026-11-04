@@ -51,15 +51,14 @@ function normalizar(texto) {
 function avaliarExpressao(expr, x = 0) {
 
     let e = expr
-        .replace(/\s+/g, "")
-        .replace(/,/g, ".")
-        .replace(/π/g, "Math.PI")
-        .replace(/\bpi\b/g, "Math.PI")
-        .replace(/sqrt\(/g, "Math.sqrt(")
-        .replace(/\^/g, "**")
-        .replace(/(\d)(x)/g, "$1*x")
-        .replace(/(x)(\d)/g, "x*$2");
-
+    .replace(/\s+/g, "")
+    .replace(/,/g, ".")
+    .replace(/×/g, "*")
+    .replace(/÷/g, "/")
+    .replace(/·/g, "*")
+    .replace(/−/g, "-")
+    .replace(/²/g, "^2")
+    .replace(/³/g, "^3")
     if (!/^[0-9x+\-*/().,%* a-zA-Z_]+$/.test(e)) {
         throw new Error("Expressão inválida");
     }
