@@ -50,30 +50,55 @@ function normalizar(texto) {
 
 function avaliarExpressao(expr, x = 0) {
 
-    let e = expr
-    .replace(/\s+/g, "")
-    .replace(/,/g, ".")
-    .replace(/×/g, "*")
-    .replace(/÷/g, "/")
-    .replace(/·/g, "*")
-    .replace(/−/g, "-")
-    .replace(/²/g, "^2")
-    .replace(/³/g, "^3")
-    if (!/^[0-9x+\-*/().,%* a-zA-Z_]+$/.test(e)) {
+    let e = String(expr)
+        .trim()
+        .replace(/\s+/g, "")
+        .replace(/,/g, ".")
+        .replace(/×/g, "*")
+        .replace(/÷/g, "/")
+        .replace(/·/g, "*")
+        .replace(/−/g, "-")
+        .replace(/²/g, "^2")
+        .replace(/³/g, "^3")
+        .replace(/⁴/g, "^4");
+
+    // Potências
+    e = e.replace(/\^/g, "**");
+
+    // Raiz quadrada e pi
+    e = e.replace(/\bpi\b/gi, "Math.PI");
+    e = e.replace(/sqrt\(/gi, "Math.sqrt(");
+
+    // Multiplicação implícita
+    e = e.replace(/(\d)(x)/g, "$1*$2");
+    e = e.replace(/(\d)\(/g, "$1*(");
+    e = e.replace(/\)(\d|x)/g, ")*$1");
+    e = e.replace(/x\(/g, "x*(");
+
+    // Verificar caracteres permitidos
+    if (!/^[0-9x+\-*/().,%A-Za-z_]+$/.test(e)) {
         throw new Error("Expressão inválida");
     }
 
-    if (
-        e.includes("require") ||
-        e.includes("process") ||
-        e.includes("global") ||
-        e.includes("constructor") ||
-        e.includes("eval")
-    ) {
-        throw new Error("Expressão não permitida");
+    // Bloquear identificadores não permitidos
+    const identificadores = e.match(/[A-Za-z_]+/g) || [];
+
+    for (const nome of identificadores) {
+        if (!["x", "Math", "PI", "sqrt"].includes(nome)) {
+            throw new Error("Operação não permitida: " + nome);
+        }
     }
 
-    return Function("x", `"use strict"; return (${e});`)(x);
+    const resultado = Function(
+        "x",
+        '"use strict"; return (' + e + ');'
+    )(x);
+
+    if (typeof resultado !== "number" || !Number.isFinite(resultado)) {
+        throw new Error("Não foi possível calcular esta expressão.");
+    }
+
+    return resultado;
 }
 
 
