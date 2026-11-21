@@ -2,29 +2,260 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
-const {
-    derivative,
-    secondDerivative,
-    newton,
-    bisection,
-    simpson,
-    trapezoidal,
-    rk4
-} = require("./engine/numerical");
-
-const {
-    factorial,
-    taylor,
-    geometricSeries,
-    infiniteGeometric
-} = require("./engine/series");
-
-const { fourierCoefficients } = require("./engine/fourier");
-const { gradient, laplacian } = require("./engine/multivariable");
-const { solveFirstOrder } = require("./engine/ode");
-
 const PORT = process.env.PORT || 3000;
+const PUBLIC_DIR = path.join(__dirname, "public");
 
+// Normalizar símbolos matemáticos
+function normalizar(texto) {
+    return String(texto)
+        .replace(/[²]/g, "^2")
+        .replace(/[³]/g, "^3")
+        .replace(/[⁴]/g, "^4")
+        .replace(/×/g, "*")
+        .replace(/÷/g, "/")
+        .replace(/[−–]/g, "-")
+        .replace(/,/g, ".")
+        .replace(/\s+/g, "")
+        .replace(/(\d)x/gi, "$1*x")
+        .replace(/(\d)\(/g, "$1*(")
+        .replace(/\)(\d|x)/gi, ")*$1")
+        .replace(/x\(/gi, "x*(");
+}
+
+// Avaliar apenas expressões numéricas simples
+function calcular(expressao) {
+    let e = expressao.replace(/\^/g, "**");
+
+    if (!/^[0-9+\-*/().*]+$/.test(e)) {
+        throw new Error("Expressão inválida.");
+    }
+
+    const resultado = Function('"use strict"; return (' + e + ')')();
+
+    if (!Number.isFinite(resultado)) {
+        throw new Error("Não foi possível calcular.");
+    }
+
+    return resultado;
+}
+
+function formatar(numero) {
+    if (Math.abs(numero) < 1e-10) numero = 0;
+    return Number(numero.toFixed(8)).toString();
+}
+
+// Resolver equações com x
+function resolverEquacao(expressao) {
+    const partes = expressao.split("=");
+
+    if (partes.length > 2) {
+        throw new Error("Equação inválida.");
+    }
+
+    const esquerda = partes[0];
+    const direita = partes.length === 2 ? partes[1] : "0";
+
+    if (!/[x]/i.test(esquerda + direita)) {
+        throw new Error("Não foi encontrada a variável x.");
+    }
+
+    function funcao(x) {
+        const l = calcular(esquerda.replace(/x/gi, `(${x})`));
+        const r = calcular(direita.replace(/x/gi, `(${x})`));
+        return l - r;
+    }
+
+    const c = funcao(0);
+    const f1 = funcao(1);
+    const fm1 = funcao(-1);
+
+    const a = (f1 + fm1 - 2 * c) / 2;
+    const b = (f1 - fm1) / 2;
+
+    const passos = [
+        `Equação original: ${expressao}`,
+        "Colocamos todos os termos no primeiro membro.",
+        "Identificamos os coeficientes da equação."
+    ];
+
+    if (Math.abs(a) < 1e-8) {
+        if (Math.abs(b) < 1e-8) {
+            if (Math.abs(c) < 1e-8) {
+                return {
+                    tipo: "Identidade",
+                    passos: [...passos, "A igualdade é verdadeira para qualquer valor de x."],
+                    resultado: "Infinitas soluções"
+                };
+            }
+            return {
+                tipo: "Equação impossível",
+                passos: [...passos, `${formatar(c)} = 0 é falso.`],
+                resultado: "Sem solução"
+            };
+        }
+
+        const x = -c / b;
+        passos.push(`Equação reduzida: ${formatar(b)}x + (${formatar(c)}) = 0`);
+        passos.push(`${formatar(b)}x = ${formatar(-c)}`);
+        passos.push(`Dividimos os dois membros por ${formatar(b)}.`);
+        passos.push(`x = ${formatar(-c)} / ${formatar(b)}`);
+
+        return {
+            tipo: "Equação do 1.º grau",
+            passos,
+            resultado: `x = ${formatar(x)}`
+        };
+    }
+
+    const delta = b * b - 4 * a * c;
+
+    passos.push(`Forma geral: ax² + bx + c = 0`);
+    passos.push(`a = ${formatar(a)}, b = ${formatar(b)}, c = ${formatar(c)}`);
+    passos.push("Calculamos o discriminante: Δ = b² - 4ac.");
+    passos.push(`Δ = (${formatar(b)})² - 4 × ${formatar(a)} × (${formatar(c)})`);
+    passos.push(`Δ = ${formatar(delta)}`);
+
+    if (delta < -1e-8) {
+        passos.push("Como Δ é negativo, não existem raízes reais.");
+        return {
+            tipo: "Equação do 2.º grau",
+            passos,
+            resultado: "Não existem soluções reais"
+        };
+    }
+
+    if (Math.abs(delta) <= 1e-8) {
+        const x = -b / (2 * a);
+        passos.push("Como Δ = 0, existe uma única solução real.");
+        passos.push(`x = -b / 2a = ${formatar(x)}`);
+
+        return {
+            tipo: "Equação do 2.º grau",
+            passos,
+            resultado: `x = ${formatar(x)}`
+        };
+    }
+
+    const x1 = (-b + Math.sqrt(delta)) / (2 * a);
+    const x2 = (-b - Math.sqrt(delta)) / (2 * a);
+
+    passos.push("Aplicamos a fórmula resolvente:");
+    passos.push("x = (-b ± √Δ) / 2a");
+    passos.push(`x₁ = ${formatar(x1)}`);
+    passos.push(`x₂ = ${formatar(x2)}`);
+
+    return {
+        tipo: "Equação do 2.º grau",
+        passos,
+        resultado: `x₁ = ${formatar(x1)} e x₂ = ${formatar(x2)}`
+    };
+}
+
+function resolverProblema(pergunta) {
+    let expressao = normalizar(pergunta);
+
+    expressao = expressao.replace(
+        /^(resolva|resolver|calcule|calcular|determine|encontre|quantoé|qualé)/i,
+        ""
+    );
+
+    if (expressao.includes("x")) {
+        return resolverEquacao(expressao);
+    }
+
+    const resultado = calcular(expressao);
+
+    return {
+        tipo: "Expressão aritmética",
+        passos: [
+            `Expressão original: ${pergunta}`,
+            `Aplicamos a ordem das operações: primeiro parênteses, depois potências, multiplicações e divisões, e por fim adições e subtrações.`,
+            `Calculamos a expressão: ${expressao}`,
+            `Resultado do cálculo: ${formatar(resultado)}`
+        ],
+        resultado: formatar(resultado)
+    };
+}
+
+// Servidor
+const server = http.createServer((req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+
+    if (req.method === "OPTIONS") {
+        res.writeHead(204);
+        return res.end();
+    }
+
+    if (req.method === "POST" && req.url === "/api/solve") {
+        let body = "";
+
+        req.on("data", chunk => {
+            body += chunk;
+            if (body.length > 100000) req.destroy();
+        });
+
+        req.on("end", () => {
+            try {
+                const dados = JSON.parse(body);
+                if (!dados.question || !String(dados.question).trim()) {
+                    throw new Error("Escreve um exercício primeiro.");
+                }
+
+                const resposta = resolverProblema(dados.question);
+
+                res.writeHead(200, {
+                    "Content-Type": "application/json; charset=utf-8"
+                });
+                res.end(JSON.stringify(resposta));
+            } catch (erro) {
+                res.writeHead(400, {
+                    "Content-Type": "application/json; charset=utf-8"
+                });
+                res.end(JSON.stringify({
+                    erro: erro.message,
+                    tipo: "Não identificado",
+                    passos: [],
+                    resultado: "Não foi possível resolver o exercício."
+                }));
+            }
+        });
+
+        return;
+    }
+
+    const solicitado = req.url === "/" ? "index.html" : req.url.split("?")[0].replace(/^\/+/, "");
+    const arquivo = path.resolve(PUBLIC_DIR, solicitado);
+
+    if (!arquivo.startsWith(PUBLIC_DIR + path.sep)) {
+        res.writeHead(403);
+        return res.end("Acesso negado.");
+    }
+
+    fs.readFile(arquivo, (erro, conteudo) => {
+        if (erro) {
+            res.writeHead(404);
+            return res.end("Ficheiro não encontrado.");
+        }
+
+        const extensao = path.extname(arquivo);
+        const tipos = {
+            ".html": "text/html",
+            ".css": "text/css",
+            ".js": "application/javascript"
+        };
+
+        res.writeHead(200, {
+            "Content-Type": (tipos[extensao] || "text/plain") + "; charset=utf-8"
+        });
+        res.end(conteudo);
+    });
+});
+
+server.listen(PORT, () => {
+    console.log(`Dream IA online na porta ${PORT}`);
+});
 
 // ===============================
 // NORMALIZAÇÃO
